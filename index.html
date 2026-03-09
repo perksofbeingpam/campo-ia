@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Campo de Inteligencia · 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --void:#02040a;--deep:#060e1c;--surface:#091526;--card:#0d1d33;--border:#14283f;--dim:#1a3050;
+  --elec:#00cfff;--neon:#0dffb0;--gold:#f7c948;--nova:#ff6b35;--plasma:#b47aff;--rose:#ff6eb4;
+  --text:#d8ecff;--muted:#4a6a8a;
+  --t-long: 0.8s cubic-bezier(0.76,0,0.24,1);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--void);}
+body{color:var(--text);font-family:'Syne',sans-serif;cursor:default;}
+
+/* ─── HUD ─── */
+#hud{
+  position:fixed;top:0;left:0;right:0;height:48px;z-index:1000;
+  background:rgba(2,4,10,0.92);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 24px;gap:20px;
+}
+.hud-logo{
+  font-family:'Orbitron',monospace;font-size:10px;font-weight:900;
+  color:var(--elec);letter-spacing:3px;white-space:nowrap;
+  text-shadow:0 0 20px rgba(0,207,255,0.5);
+}
+.hud-sep{width:1px;height:18px;background:var(--border);}
+.hud-nodes{display:flex;gap:6px;align-items:center;}
+.hud-node{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--border);border:1px solid var(--dim);
+  transition:all 0.5s ease;
+}
+.hud-node.done{background:var(--neon);box-shadow:0 0 10px var(--neon);border-color:var(--neon);}
+.hud-status{
+  font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);
+  letter-spacing:1px;white-space:nowrap;
+}
+.hud-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+.hud-score{font-family:'Orbitron',monospace;font-size:10px;color:var(--gold);}
+
+/* ─── MAP WRAPPER ─── */
+#map-wrapper{position:fixed;inset:48px 0 0 0;overflow:hidden;}
+#map-world{
+  position:absolute;inset:0;
+  transition:transform var(--t-long),opacity 0.45s ease;
+  transform-origin:center center;
+}
+/* Animated grid */
+#map-world::before{
+  content:'';position:absolute;inset:-60px;
+  background-image:
+    linear-gradient(rgba(0,207,255,0.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,207,255,0.035) 1px,transparent 1px);
+  background-size:64px 64px;
+  animation:grid-drift 25s linear infinite;
+}
+@keyframes grid-drift{from{transform:translate(0,0);}to{transform:translate(64px,64px);}}
+/* Radial vignette */
+#map-world::after{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 80% at center,transparent 20%,var(--void) 90%);
+  pointer-events:none;z-index:2;
+}
+/* SVG connections */
+#map-svg{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;}
+/* Nodes layer */
+#map-nodes{position:absolute;inset:0;z-index:3;}
+/* Ambient orbs */
+.orb{position:absolute;border-radius:50%;filter:blur(90px);pointer-events:none;z-index:0;}
+.orb1{width:500px;height:500px;top:-100px;left:-100px;background:rgba(0,207,255,0.06);animation:o1 10s ease-in-out infinite alternate;}
+.orb2{width:400px;height:400px;bottom:-80px;right:-80px;background:rgba(180,122,255,0.07);animation:o2 13s ease-in-out infinite alternate;}
+.orb3{width:300px;height:300px;bottom:30%;left:20%;background:rgba(13,255,176,0.04);animation:o3 8s ease-in-out infinite alternate;}
+@keyframes o1{to{transform:translate(40px,30px);}}
+@keyframes o2{to{transform:translate(-30px,-40px);}}
+@keyframes o3{to{transform:translate(20px,-20px);}}
+
+/* Map text */
+.map-title{
+  position:absolute;top:5%;left:50%;transform:translateX(-50%);
+  font-family:'Orbitron',monospace;font-size:clamp(9px,1.2vw,13px);
+  font-weight:900;letter-spacing:5px;color:var(--elec);
+  text-align:center;pointer-events:none;z-index:4;
+  text-shadow:0 0 40px rgba(0,207,255,0.6);white-space:nowrap;
+  opacity:0;animation:fadeIn 1s 0.5s ease forwards;
+}
+.map-subtitle{
+  position:absolute;top:calc(5% + 28px);left:50%;transform:translateX(-50%);
+  font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);
+  text-align:center;pointer-events:none;z-index:4;white-space:nowrap;
+  opacity:0;animation:fadeIn 1s 0.8s ease forwards;
+}
+.map-hint{
+  position:absolute;bottom:3%;left:50%;transform:translateX(-50%);
+  font-family:'Orbitron',monospace;font-size:8px;color:var(--muted);
+  letter-spacing:2px;z-index:4;pointer-events:none;white-space:nowrap;
+  animation:blink 2s ease-in-out infinite;
+  opacity:0;animation:fadeIn 1s 1.2s ease forwards,blink 2s 2s ease-in-out infinite;
+}
+@keyframes fadeIn{to{opacity:1;}}
+@keyframes blink{0%,100%{opacity:0.5;}50%{opacity:1;}}
+
+/* ─── HEX NODE ─── */
+.map-node{
+  position:absolute;transform:translate(-50%,-50%);cursor:pointer;
+  animation:nodeEnter 0.7s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.map-node:nth-child(1){animation-delay:0.6s;}
+.map-node:nth-child(2){animation-delay:0.8s;}
+.map-node:nth-child(3){animation-delay:1.0s;}
+.map-node:nth-child(4){animation-delay:1.2s;}
+.map-node:nth-child(5){animation-delay:1.4s;}
+.map-node:nth-child(6){animation-delay:1.6s;}
+@keyframes nodeEnter{
+  from{opacity:0;transform:translate(-50%,-50%) scale(0.3);}
+  to{opacity:1;transform:translate(-50%,-50%) scale(1);}
+}
+.node-wrap{
+  position:relative;width:112px;height:112px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+  transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+.map-node:hover .node-wrap{transform:scale(1.12);}
+.map-node.center-node .node-wrap{width:136px;height:136px;}
+
+/* Hex shape layers */
+.node-bg,.node-border,.node-glow{
+  position:absolute;inset:0;
+  clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+}
+.node-border{inset:-2px;transition:all 0.3s ease;}
+.node-glow{inset:-6px;opacity:0.25;transition:all 0.3s ease;animation:hexPulse 3s ease-in-out infinite;}
+@keyframes hexPulse{0%,100%{opacity:0.2;transform:scale(1);}50%{opacity:0.45;transform:scale(1.04);}}
+.node-bg{background:var(--card);}
+
+.map-node:hover .node-glow{opacity:0.6;animation-duration:1s;}
+
+.node-ico{font-size:30px;position:relative;z-index:1;line-height:1;transition:transform 0.3s ease;}
+.map-node:hover .node-ico{transform:scale(1.1);}
+.node-lbl{
+  font-family:'Orbitron',monospace;font-size:7px;font-weight:700;
+  text-align:center;letter-spacing:0.5px;line-height:1.4;
+  position:relative;z-index:1;max-width:80px;
+  transition:color 0.2s ease;
+}
+.map-node.center-node .node-ico{font-size:38px;}
+.map-node.center-node .node-lbl{font-size:8px;max-width:100px;}
+
+/* Visited state */
+.map-node.visited .node-bg{background:rgba(13,255,176,0.06);}
+.map-node.visited .node-border{opacity:1!important;}
+
+/* Color themes */
+.c-elec .node-border{background:var(--elec);}
+.c-elec .node-glow{background:var(--elec);}
+.c-elec .node-lbl{color:var(--elec);}
+.c-neon .node-border{background:var(--neon);}
+.c-neon .node-glow{background:var(--neon);}
+.c-neon .node-lbl{color:var(--neon);}
+.c-gold .node-border{background:var(--gold);}
+.c-gold .node-glow{background:var(--gold);}
+.c-gold .node-lbl{color:var(--gold);}
+.c-nova .node-border{background:var(--nova);}
+.c-nova .node-glow{background:var(--nova);}
+.c-nova .node-lbl{color:var(--nova);}
+.c-plasma .node-border{background:var(--plasma);}
+.c-plasma .node-glow{background:var(--plasma);}
+.c-plasma .node-lbl{color:var(--plasma);}
+.c-rose .node-border{background:var(--rose);}
+.c-rose .node-glow{background:var(--rose);}
+.c-rose .node-lbl{color:var(--rose);}
+
+/* Tooltip */
+.node-tip{
+  position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);
+  background:rgba(6,14,28,0.95);border:1px solid var(--border);
+  padding:7px 13px;border-radius:5px;white-space:nowrap;
+  font-family:'Space Mono',monospace;font-size:10px;color:var(--text);
+  pointer-events:none;opacity:0;transition:opacity 0.2s ease;
+  backdrop-filter:blur(8px);
+}
+.map-node:hover .node-tip{opacity:1;}
+
+/* SVG line animation */
+.conn{stroke-dasharray:8 5;animation:dashFlow 2.5s linear infinite;}
+@keyframes dashFlow{to{stroke-dashoffset:-52;}}
+
+/* Corner HUD decorations */
+.corner{position:fixed;width:36px;height:36px;z-index:900;pointer-events:none;}
+.c-tl{top:56px;left:8px;border-top:2px solid var(--border);border-left:2px solid var(--border);}
+.c-tr{top:56px;right:8px;border-top:2px solid var(--border);border-right:2px solid var(--border);}
+.c-bl{bottom:8px;left:8px;border-bottom:2px solid var(--border);border-left:2px solid var(--border);}
+.c-br{bottom:8px;right:8px;border-bottom:2px solid var(--border);border-right:2px solid var(--border);}
+
+/* Scan lines */
+body::after{
+  content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.025) 3px,rgba(0,0,0,0.025) 4px);
+  pointer-events:none;z-index:9999;
+}
+
+/* ─── PANEL SYSTEM ─── */
+#panel-overlay{
+  position:fixed;inset:48px 0 0 0;z-index:500;
+  display:none;opacity:0;transition:opacity 0.4s ease;
+  overflow:hidden;
+}
+#panel-overlay.vis{opacity:1;}
+.panel{position:absolute;inset:0;overflow-y:auto;display:none;background:var(--void);}
+.panel.on{display:block;}
+.panel-content{max-width:1080px;margin:0 auto;padding:32px 32px 100px;}
+
+/* Back btn */
+.back-btn{
+  display:inline-flex;align-items:center;gap:8px;margin-bottom:36px;
+  font-family:'Orbitron',monospace;font-size:8px;font-weight:700;
+  color:var(--muted);background:rgba(6,14,28,0.9);
+  border:1px solid var(--border);padding:10px 18px;
+  cursor:pointer;letter-spacing:2px;transition:all 0.2s ease;
+  backdrop-filter:blur(8px);border-radius:4px;
+}
+.back-btn:hover{color:var(--elec);border-color:var(--elec);}
+
+/* Panel header */
+.p-tag{
+  font-family:'Orbitron',monospace;font-size:8px;font-weight:700;
+  letter-spacing:3px;margin-bottom:10px;
+  display:flex;align-items:center;gap:12px;
+}
+.p-tag::after{content:'';flex:1;height:1px;background:var(--border);}
+.p-title{
+  font-family:'Orbitron',monospace;
+  font-size:clamp(22px,3.5vw,44px);font-weight:900;
+  line-height:1.1;margin-bottom:18px;letter-spacing:-0.5px;
+}
+.p-intro{font-size:16px;line-height:1.75;color:var(--muted);max-width:700px;margin-bottom:36px;}
+.p-intro strong{color:var(--text);}
+
+/* ─ SHARED COMPONENTS ─ */
+.chip{
+  display:inline-block;padding:3px 10px;border-radius:999px;
+  font-family:'Space Mono',monospace;font-size:10px;margin:3px;
+}
+.ce{background:rgba(0,207,255,0.1);color:var(--elec);border:1px solid rgba(0,207,255,0.25);}
+.cn{background:rgba(13,255,176,0.1);color:var(--neon);border:1px solid rgba(13,255,176,0.25);}
+.cg{background:rgba(247,201,72,0.1);color:var(--gold);border:1px solid rgba(247,201,72,0.25);}
+.cp{background:rgba(180,122,255,0.1);color:var(--plasma);border:1px solid rgba(180,122,255,0.25);}
+.cr{background:rgba(255,110,180,0.1);color:var(--rose);border:1px solid rgba(255,110,180,0.25);}
+.co{background:rgba(255,107,53,0.1);color:var(--nova);border:1px solid rgba(255,107,53,0.25);}
+
+.callout{
+  border-left:3px solid var(--gold);padding:16px 20px;
+  background:rgba(247,201,72,0.04);border-radius:0 10px 10px 0;
+  margin:24px 0;font-size:14px;line-height:1.7;color:var(--muted);
+}
+.callout strong{color:var(--text);}
+.callout-green{border-left-color:var(--neon);background:rgba(13,255,176,0.04);}
+.callout-elec{border-left-color:var(--elec);background:rgba(0,207,255,0.04);}
+
+/* stat bars */
+.stat-r{display:flex;align-items:center;gap:10px;margin:9px 0;}
+.stat-l{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);width:110px;flex-shrink:0;}
+.stat-b{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+.stat-f{height:100%;border-radius:2px;width:0;transition:width 1s ease 0.3s;}
+.stat-v{font-family:'Space Mono',monospace;font-size:9px;color:var(--text);width:22px;text-align:right;}
+
+/* ─── PARADIGMA PANEL ─── */
+.toggle-row{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;max-width:300px;margin-bottom:32px;}
+.tbtn{
+  flex:1;padding:11px 18px;font-family:'Orbitron',monospace;font-size:8px;
+  font-weight:700;letter-spacing:2px;cursor:pointer;border:none;
+  background:transparent;color:var(--muted);transition:all 0.3s ease;
+}
+.tbtn.on{background:var(--elec);color:var(--void);}
+.pview{display:none;}.pview.on{display:block;}
+.concept-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:28px 0;}
+.ccard{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:22px;cursor:pointer;transition:all 0.25s ease;position:relative;overflow:hidden;
+}
+.ccard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.ccard.cc-e::before{background:var(--elec);}
+.ccard.cc-n::before{background:var(--neon);}
+.ccard.cc-g::before{background:var(--gold);}
+.ccard.cc-p::before{background:var(--plasma);}
+.ccard:hover{transform:translateY(-3px);border-color:var(--dim);}
+.ccard.lit{border-color:var(--elec);}
+.ctitle{font-family:'Orbitron',monospace;font-size:9px;font-weight:700;letter-spacing:1px;margin-bottom:8px;}
+.cshort{font-size:13px;color:var(--muted);line-height:1.6;}
+.cdetail{max-height:0;overflow:hidden;transition:max-height 0.45s ease,padding 0.3s ease;font-size:13px;line-height:1.65;color:var(--muted);}
+.cdetail.open{max-height:250px;padding-top:12px;}
+.cdetail strong{color:var(--text);}
+.chint{font-family:'Space Mono',monospace;font-size:8px;color:var(--dim);margin-top:10px;transition:color 0.2s;}
+.ccard:hover .chint{color:var(--elec);}
+
+.compare-grid{display:grid;grid-template-columns:1fr 64px 1fr;gap:0;border:1px solid var(--border);border-radius:14px;overflow:hidden;margin:28px 0;}
+.cg-col{padding:28px 22px;}
+.cg-col h4{font-family:'Orbitron',monospace;font-size:8px;letter-spacing:2px;margin-bottom:16px;}
+.cg-old h4{color:var(--muted);}
+.cg-new h4{color:var(--neon);}
+.cg-col.cg-old{border-right:1px solid var(--border);}
+.cg-mid{display:flex;align-items:center;justify-content:center;background:var(--deep);color:var(--gold);font-size:22px;font-weight:900;}
+.cg-item{font-size:13px;color:var(--muted);margin:10px 0;line-height:1.5;}
+.cg-item strong{color:var(--text);display:block;font-size:14px;}
+.cg-item.good strong{color:var(--neon);}
+
+/* ─── TITANS & DISRUPTORS PANELS ─── */
+.model-tabrow{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;max-width:420px;margin-bottom:24px;}
+.mtab{
+  flex:1;padding:10px 14px;font-family:'Orbitron',monospace;font-size:7.5px;
+  font-weight:700;letter-spacing:1px;cursor:pointer;border:none;
+  background:transparent;color:var(--muted);transition:all 0.2s ease;white-space:nowrap;
+}
+.mtab.on{background:var(--surface);color:var(--text);}
+.model-row{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:24px 0;}
+@media(max-width:760px){.model-row{grid-template-columns:1fr;}}
+.mcard{
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  overflow:hidden;transition:transform 0.2s ease,border-color 0.2s ease;
+}
+.mcard:hover{transform:translateY(-4px);}
+.mcard-top{padding:20px 18px 16px;border-bottom:1px solid var(--border);position:relative;}
+.mnum{font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:6px;}
+.mname{font-family:'Orbitron',monospace;font-size:15px;font-weight:900;margin-bottom:4px;letter-spacing:-0.5px;}
+.mtag-line{font-size:12px;color:var(--muted);font-style:italic;}
+.melo{
+  position:absolute;top:16px;right:14px;
+  font-family:'Space Mono',monospace;font-size:8px;
+  background:rgba(247,201,72,0.1);color:var(--gold);
+  border:1px solid rgba(247,201,72,0.3);padding:3px 7px;border-radius:4px;
+}
+.mcard-body{padding:16px 18px 20px;}
+.mtc{display:none;}.mtc.on{display:block;}
+.pi{padding:11px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline;font-size:13px;}
+.pi:last-child{border:none;}
+.pl{color:var(--muted);}
+.pv{font-family:'Space Mono',monospace;font-weight:700;}
+.pv.g{color:var(--neon);}
+.pv.r{color:var(--nova);}
+.pv.y{color:var(--gold);}
+.wi{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;line-height:1.55;color:var(--muted);}
+.wi:last-child{border:none;}
+.wi strong{color:var(--text);display:block;}
+.wd{color:var(--neon);flex-shrink:0;margin-top:2px;}
+
+/* ─── CUÁL USAR PANEL ─── */
+.task-g{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:28px 0;}
+@media(min-width:600px){.task-g{grid-template-columns:repeat(4,1fr);}}
+.tnode{
+  background:var(--card);border:2px solid var(--border);border-radius:12px;
+  padding:22px 12px;text-align:center;cursor:pointer;
+  transition:all 0.2s ease;
+}
+.tnode:hover,.tnode.sel{border-color:var(--gold);background:rgba(247,201,72,0.06);transform:translateY(-3px);}
+.tico{font-size:30px;display:block;margin-bottom:8px;}
+.tlbl{font-size:13px;font-weight:700;display:block;}
+.rec-box{
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:28px;min-height:150px;display:flex;align-items:center;gap:24px;
+  transition:border-color 0.3s,background 0.3s;
+}
+.rec-ph{color:var(--muted);font-size:14px;font-style:italic;flex:1;}
+.rico{font-size:48px;flex-shrink:0;}
+.rbody h3{font-family:'Orbitron',monospace;font-size:12px;font-weight:700;margin-bottom:8px;letter-spacing:0.5px;}
+.rbody p{font-size:14px;color:var(--muted);line-height:1.65;}
+.rbody p strong{color:var(--text);}
+.rbody .chips{margin-top:12px;}
+
+/* ─── ECONOMY PANEL ─── */
+.cur-toggle{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;max-width:260px;margin-bottom:24px;}
+.ctbtn{
+  flex:1;padding:10px;font-family:'Orbitron',monospace;font-size:8px;
+  font-weight:700;cursor:pointer;border:none;background:transparent;
+  color:var(--muted);transition:all 0.2s;letter-spacing:1px;
+}
+.ctbtn.on{background:var(--gold);color:var(--void);}
+.price-tbl{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin:24px 0;}
+.ptr{display:grid;grid-template-columns:1.5fr 1fr 1.2fr 1.5fr;border-bottom:1px solid var(--border);transition:background 0.2s;}
+.ptr:last-child{border:none;}
+.ptr:hover:not(.pth){background:rgba(255,255,255,0.02);}
+.pth{background:var(--surface);}
+.ptc{padding:14px 15px;font-size:13px;border-right:1px solid var(--border);}
+.ptc:last-child{border:none;}
+.pth .ptc{font-family:'Orbitron',monospace;font-size:7px;color:var(--muted);letter-spacing:1px;}
+.ptm{font-weight:700;}
+.ptfree{color:var(--neon);font-weight:600;font-size:12px;}
+.ptapi{font-family:'Space Mono',monospace;}
+.ptapi.cheap{color:var(--neon);}
+.ptapi.mid{color:var(--gold);}
+.ptapi.exp{color:var(--nova);}
+
+/* ─── AGENT PANEL ─── */
+.agent-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:32px 0;}
+.acard{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:22px;cursor:pointer;transition:all 0.2s ease;
+}
+.acard:hover,.acard.exp{transform:translateY(-3px);border-color:var(--plasma);}
+.aico{font-size:30px;margin-bottom:10px;}
+.atitle{font-family:'Orbitron',monospace;font-size:10px;font-weight:700;letter-spacing:1px;margin-bottom:5px;}
+.amodel{font-family:'Space Mono',monospace;font-size:10px;color:var(--gold);margin-bottom:10px;display:inline-block;}
+.adesc{font-size:13px;color:var(--muted);line-height:1.6;}
+.adetail{max-height:0;overflow:hidden;transition:max-height 0.4s ease;border-top:0 solid var(--border);font-size:13px;color:var(--muted);line-height:1.6;}
+.adetail.open{max-height:200px;border-top:1px solid var(--border);padding-top:12px;margin-top:12px;}
+.adetail strong{color:var(--text);}
+.achint{font-family:'Space Mono',monospace;font-size:8px;color:var(--dim);margin-top:8px;transition:color 0.2s;}
+.acard:hover .achint{color:var(--plasma);}
+
+/* Decision matrix */
+.mtx{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin:32px 0;}
+.mrow{display:grid;grid-template-columns:1.5fr 1fr 1.7fr;border-bottom:1px solid var(--border);transition:background 0.2s;}
+.mrow:last-child{border:none;}
+.mrow:hover:not(.mhdr){background:rgba(255,255,255,0.02);}
+.mhdr{background:var(--surface);}
+.mc2{padding:15px 18px;font-size:13px;border-right:1px solid var(--border);line-height:1.55;}
+.mc2:last-child{border:none;}
+.mhdr .mc2{font-family:'Orbitron',monospace;font-size:7px;color:var(--muted);letter-spacing:1px;}
+.mc2 strong{color:var(--text);}
+.mc2 span{color:var(--muted);font-size:12px;}
+
+/* ─── PANEL ENTER ANIMATION ─── */
+@keyframes panelIn{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+.panel.on .panel-content{animation:panelIn 0.5s ease both;}
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:var(--void);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<nav id="hud">
+  <div class="hud-logo">CAMPO·IA</div>
+  <div class="hud-sep"></div>
+  <div class="hud-nodes" id="hud-nodes">
+    <div class="hud-node" title="El Paradigma"></div>
+    <div class="hud-node" title="Los Titanes"></div>
+    <div class="hud-node" title="Los Disruptores"></div>
+    <div class="hud-node" title="Cuál Usar"></div>
+    <div class="hud-node" title="La Economía"></div>
+    <div class="hud-node" title="Orquestación"></div>
+  </div>
+  <div class="hud-sep"></div>
+  <div class="hud-status" id="hud-status">SELECCIONA UN NODO</div>
+  <div class="hud-right">
+    <div class="hud-score" id="hud-score">0 / 6 ZONAS</div>
+  </div>
+</nav>
+
+<!-- Corner decorations -->
+<div class="corner c-tl"></div><div class="corner c-tr"></div>
+<div class="corner c-bl"></div><div class="corner c-br"></div>
+
+<!-- MAP -->
+<div id="map-wrapper">
+  <div id="map-world">
+    <div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div>
+
+    <!-- SVG connections -->
+    <svg id="map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="lg-elec" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:rgba(0,207,255,0.6)"/>
+          <stop offset="100%" style="stop-color:rgba(0,207,255,0.1)"/>
+        </linearGradient>
+        <linearGradient id="lg-mid" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:rgba(0,207,255,0.15)"/>
+          <stop offset="100%" style="stop-color:rgba(13,255,176,0.15)"/>
+        </linearGradient>
+        <linearGradient id="lg-bot" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:rgba(13,255,176,0.15)"/>
+          <stop offset="100%" style="stop-color:rgba(247,201,72,0.15)"/>
+        </linearGradient>
+      </defs>
+      <!-- Paradigma → Titanes -->
+      <line class="conn" x1="50" y1="18" x2="20" y2="46" stroke="url(#lg-elec)" stroke-width="0.4"/>
+      <!-- Paradigma → Disruptores -->
+      <line class="conn" x1="50" y1="18" x2="80" y2="46" stroke="url(#lg-elec)" stroke-width="0.4"/>
+      <!-- Titanes → Cuál Usar -->
+      <line class="conn" x1="20" y1="54" x2="40" y2="67" stroke="url(#lg-mid)" stroke-width="0.3" style="animation-delay:-1s"/>
+      <!-- Disruptores → Cuál Usar -->
+      <line class="conn" x1="80" y1="54" x2="60" y2="67" stroke="url(#lg-mid)" stroke-width="0.3" style="animation-delay:-0.5s"/>
+      <!-- Cuál Usar → Economía -->
+      <line class="conn" x1="48" y1="73" x2="28" y2="83" stroke="url(#lg-bot)" stroke-width="0.3" style="animation-delay:-2s"/>
+      <!-- Cuál Usar → Orquestación -->
+      <line class="conn" x1="52" y1="73" x2="72" y2="83" stroke="url(#lg-bot)" stroke-width="0.3" style="animation-delay:-1.5s"/>
+    </svg>
+
+    <!-- NODES -->
+    <div id="map-nodes">
+
+      <!-- 1. El Paradigma — center top -->
+      <div class="map-node center-node c-elec" style="left:50%;top:16%" onclick="openPanel('paradigma',this)" data-name="EL PARADIGMA">
+        <div class="node-tip">El giro que cambió todo — 2026</div>
+        <div class="node-wrap">
+          <div class="node-glow"></div>
+          <div class="node-border"></div>
+          <div class="node-bg"></div>
+          <div class="node-ico">⚡</div>
+          <div class="node-lbl">EL PARADIGMA</div>
+        </div>
+      </div>
+
+      <!-- 2. Los Titanes — mid left -->
+      <div class="map-node c-plasma" style="left:20%;top:50%" onclick="openPanel('titanes',this)" data-name="LOS TITANES">
+        <div class="node-tip">Gemini · Claude · GPT-5</div>
+        <div class="node-wrap">
+          <div class="node-glow"></div>
+          <div class="node-border"></div>
+          <div class="node-bg"></div>
+          <div class="node-ico">👑</div>
+          <div class="node-lbl">LOS TITANES</div>
+        </div>
+      </div>
+
+      <!-- 3. Los Disruptores — mid right -->
+      <div class="map-node c-nova" style="left:80%;top:50%" onclick="openPanel('disruptores',this)" data-name="LOS DISRUPTORES">
+        <div class="node-tip">DeepSeek · Qwen · GLM-5</div>
+        <div class="node-wrap">
+          <div class="node-glow"></div>
+          <div class="node-border"></div>
+          <div class="node-bg"></div>
+          <div class="node-ico">🔥</div>
+          <div class="node-lbl">LOS DISRUPTORES</div>
+        </div>
+      </div>
+
+      <!-- 4. Cuál Usar — center -->
+      <div class="map-node c-gold" style="left:50%;top:70%" onclick="openPanel('uso',this)" data-name="¿CUÁL USAR?">
+        <div class="node-tip">Encuentra tu modelo ideal</div>
+        <div class="node-wrap">
+          <div class="node-glow"></div>
+          <div class="node-border"></div>
+          <div class="node-bg"></div>
+          <div class="node-ico">🎯</div>
+          <div class="node-lbl">¿CUÁL USAR?</div>
+        </div>
+      </div>
+
+      <!-- 5. Economía — bottom left -->
+      <div class="map-node c-neon" style="left:28%;top:84%" onclick="openPanel('economia',this)" data-name="LA ECONOMÍA">
+        <div class="node-tip">¿Cuándo vale pagar?</div>
+        <div class="node-wrap">
+          <div class="node-glow"></div>
+          <div class="node-border"></div>
+          <div class="node-bg"></div>
+          <div class="node-ico">💰</div>
+          <div class="node-lbl">LA ECONOMÍA</div>
+        </div>
+      </div>
+
+      <!-- 6. Orquestación — bottom right -->
+      <div class="map-node c-rose" style="left:72%;top:84%" onclick="openPanel('orquestacion',this)" data-name="ORQUESTACIÓN">
+        <div class="node-tip">Arma tu stack de agentes</div>
+        <div class="node-wrap">
+          <div class="node-glow"></div>
+          <div class="node-border"></div>
+          <div class="node-bg"></div>
+          <div class="node-ico">🤖</div>
+          <div class="node-lbl">ORQUESTACIÓN</div>
+        </div>
+      </div>
+
+    </div><!-- /map-nodes -->
+
+    <div class="map-title">CAMPO DE INTELIGENCIA ARTIFICIAL · 2026</div>
+    <div class="map-subtitle">CDMX · EDICIÓN ESTRATÉGICA</div>
+    <div class="map-hint">▸ HAZ CLICK EN CUALQUIER NODO PARA EXPLORAR</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     PANEL OVERLAY
+═══════════════════════════════════════ -->
+<div id="panel-overlay">
+
+  <!-- ─ PANEL 1: EL PARADIGMA ─ -->
+  <div class="panel" id="p-paradigma">
+    <div class="panel-content">
+      <button class="back-btn" onclick="closePanel()">← VOLVER AL MAPA</button>
+      <div class="p-tag" style="color:var(--elec)">⚡ ZONA 01 — EL PARADIGMA</div>
+      <h1 class="p-title">Antes <span style="color:var(--muted)">predecían.</span><br>Ahora <span style="color:var(--elec)">razonan.</span></h1>
+      <p class="p-intro">En 2026, la IA ejecutó un giro de fondo. No es el mismo juego. Para entender <strong>por qué algunos modelos cuestan 400x más que otros</strong> — y cuándo tiene sentido pagar — primero hay que entender esto.</p>
+
+      <div class="toggle-row">
+        <button class="tbtn on" onclick="switchView('antes')">ANTES</button>
+        <button class="tbtn" onclick="switchView('ahora')">AHORA 2026</button>
+      </div>
+
+      <div class="pview on" id="pv-antes">
+        <div class="compare-grid">
+          <div class="cg-col cg-old">
+            <h4>ANTES — Los modelos clásicos</h4>
+            <div class="cg-item"><strong>Predecir la siguiente palabra</strong>Probabilidades sobre texto. Lo que suena probable, no lo que es correcto.</div>
+            <div class="cg-item"><strong>Respuesta instantánea</strong>Sin tiempo de "pensar". Rápido, pero superficial en temas complejos.</div>
+            <div class="cg-item"><strong>Más parámetros = más caro siempre</strong>La única forma de mejorar era hacerlo más grande y más costoso.</div>
+            <div class="cg-item"><strong>Alucina con confianza</strong>No sabe lo que no sabe. Inventa con el mismo tono que cuando acierta.</div>
+          </div>
+          <div class="cg-mid">→</div>
+          <div class="cg-col cg-new">
+            <h4>AHORA 2026</h4>
+            <div class="cg-item good"><strong>Razonar y verificar</strong>Genera cadenas de lógica interna antes de responder.</div>
+            <div class="cg-item good"><strong>Piensa antes de responder</strong>Test-time compute: "compra" precisión con tiempo extra.</div>
+            <div class="cg-item good"><strong>Eficiencia &gt; tamaño bruto</strong>MoE activa solo los expertos relevantes por consulta.</div>
+            <div class="cg-item good"><strong>Verifica su propia lógica</strong>RLVR: recompensa solo si la respuesta es correcta y demostrable.</div>
+          </div>
+        </div>
+      </div>
+      <div class="pview" id="pv-ahora">
+        <p class="p-intro">Haz click en cada concepto para entender cómo funciona — y qué significa para tu bolsillo.</p>
+        <div class="concept-grid">
+          <div class="ccard cc-e" onclick="revealConcept(this)">
+            <div class="ctitle" style="color:var(--elec)">MoE · MEZCLA DE EXPERTOS</div>
+            <div class="cshort">744B parámetros totales. Solo 40B activos por consulta.</div>
+            <div class="cdetail">Imagina un hospital con 200 especialistas. Cada vez que entra un paciente, solo lo atienden los 5 especialistas correctos — no los 200. <strong>El modelo tiene el conocimiento masivo de un gigante, pero el costo de ejecución de uno pequeño.</strong> Así funciona GLM-5.</div>
+            <div class="chint">▼ CLICK PARA PROFUNDIZAR</div>
+          </div>
+          <div class="ccard cc-n" onclick="revealConcept(this)">
+            <div class="ctitle" style="color:var(--neon)">RLVR · RECOMPENSAS VERIFICABLES</div>
+            <div class="cshort">El modelo aprende haciendo. Solo recibe recompensa si tiene razón.</div>
+            <div class="cdetail">A diferencia del entrenamiento clásico donde humanos juzgaban las respuestas, el RLVR usa <strong>verificadores programáticos</strong>: si el código ejecuta, si el problema matemático tiene solución correcta. El modelo no puede engañar al sistema — o funciona o no funciona. Esto genera confiabilidad sin precedentes en tareas objetivas.</div>
+            <div class="chint">▼ CLICK PARA PROFUNDIZAR</div>
+          </div>
+          <div class="ccard cc-g" onclick="revealConcept(this)">
+            <div class="ctitle" style="color:var(--gold)">TEST-TIME COMPUTE</div>
+            <div class="cshort">La inteligencia es ahora un recurso que escalas según el problema.</div>
+            <div class="cdetail"><strong>Aquí está la clave para tu bolsillo:</strong> los modelos de razonamiento "compran" precisión con tiempo de pensamiento adicional. Una tarea simple (resumir un email) → usa el modelo gratuito. Una decisión de arquitectura técnica crítica → ahí sí pagas por las "horas de razonamiento" extra. No hay que pagar el máximo siempre.</div>
+            <div class="chint">▼ CLICK PARA PROFUNDIZAR</div>
+          </div>
+          <div class="ccard cc-p" onclick="revealConcept(this)">
+            <div class="ctitle" style="color:var(--plasma)">MLA · ATENCIÓN LATENTE</div>
+            <div class="cshort">La técnica que permite 10 millones de tokens sin colapsar la memoria.</div>
+            <div class="cdetail">El KV Cache era el cuello de botella: manejar contextos enormes requería VRAM absurda. La <strong>Multi-head Latent Attention</strong> comprime la información mediante álgebra de bajo rango, permitiendo a modelos como Llama 4 Scout procesar bibliotecas enteras en hardware comercial — sin fragmentar los datos.</div>
+            <div class="chint">▼ CLICK PARA PROFUNDIZAR</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout callout-elec" style="margin-top:32px;">
+        <strong>La pregunta correcta ya no es "¿cuál modelo es el mejor?"</strong> Es: ¿qué nivel de razonamiento necesita esta tarea específica? La inteligencia en 2026 es un recurso que se escala dinámicamente. Eso es exactamente lo que vas a aprender a navegar en este campo.
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ PANEL 2: LOS TITANES ─ -->
+  <div class="panel" id="p-titanes">
+    <div class="panel-content">
+      <button class="back-btn" onclick="closePanel()">← VOLVER AL MAPA</button>
+      <div class="p-tag" style="color:var(--plasma)">👑 ZONA 02 — MODELOS PROPIETARIOS</div>
+      <h1 class="p-title">Los <span style="color:var(--plasma)">Titanes</span><br>propietarios.</h1>
+      <p class="p-intro">Los tres modelos flagship de las Big Tech. Caros, potentes, con ecosistemas que los hacen difíciles de reemplazar. <strong>Explora cada tab de cada modelo</strong> — Stats, Precio y Para quién — para entender dónde gana cada uno.</p>
+
+      <div class="model-tabrow">
+        <button class="mtab on" onclick="switchMtab(this,'stats-titans')">ESTADÍSTICAS</button>
+        <button class="mtab" onclick="switchMtab(this,'price-titans')">PRECIO</button>
+        <button class="mtab" onclick="switchMtab(this,'who-titans')">¿PARA QUIÉN?</button>
+      </div>
+
+      <div class="model-row" data-group="titans">
+
+        <!-- Gemini -->
+        <div class="mcard" style="border-color:rgba(234,67,53,0.3)">
+          <div class="mcard-top" style="background:linear-gradient(135deg,rgba(234,67,53,0.07),transparent)">
+            <div class="mnum">#001 · GOOGLE</div>
+            <div class="mname" style="color:#ff7060">Gemini 3.1 Pro</div>
+            <div class="mtag-line">El Explorador Omnívoro</div>
+            <div class="melo">ELO 1505 · #1</div>
+          </div>
+          <div class="mcard-body">
+            <div class="mtc on" data-tab="stats-titans">
+              <div class="stat-r"><span class="stat-l">Contexto</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,#ea4335,#fbbc04)" data-w="97"></div></div><span class="stat-v">97</span></div>
+              <div class="stat-r"><span class="stat-l">Razonamiento</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,#ea4335,#fbbc04)" data-w="90"></div></div><span class="stat-v">90</span></div>
+              <div class="stat-r"><span class="stat-l">Multimodal</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,#ea4335,#fbbc04)" data-w="99"></div></div><span class="stat-v">99</span></div>
+              <div class="stat-r"><span class="stat-l">Costo/valor</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,#ea4335,#fbbc04)" data-w="88"></div></div><span class="stat-v">88</span></div>
+              <div style="margin-top:12px"><span class="chip ce">1M tokens</span><span class="chip cn">Multimodal</span></div>
+            </div>
+            <div class="mtc" data-tab="price-titans">
+              <div class="pi"><span class="pl">API Input (1M tok)</span><span class="pv y">$2.00 USD</span></div>
+              <div class="pi"><span class="pl">API Output (1M tok)</span><span class="pv y">$12.00 USD</span></div>
+              <div class="pi"><span class="pl">Suscripción</span><span class="pv g">Incluida en Google One</span></div>
+              <div class="pi"><span class="pl">Versión gratis</span><span class="pv g">Flash ilimitado ✓</span></div>
+            </div>
+            <div class="mtc" data-tab="who-titans">
+              <div class="wi"><span class="wd">▸</span><div><strong>Análisis de documentos masivos</strong>1 millón de tokens con recall perfecto. Le das una biblioteca, encuentra lo que buscas.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Trabajo con imágenes, video y audio</strong>El más completo en multimodalidad nativa. No hay competencia.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Ya pagas Google One</strong>Básicamente lo tienes gratis. El mejor ROI sin discusión.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Claude -->
+        <div class="mcard" style="border-color:rgba(180,122,255,0.3)">
+          <div class="mcard-top" style="background:linear-gradient(135deg,rgba(180,122,255,0.07),transparent)">
+            <div class="mnum">#002 · ANTHROPIC</div>
+            <div class="mname" style="color:var(--plasma)">Claude 4.6 Opus</div>
+            <div class="mtag-line">El Filósofo con Consciencia</div>
+            <div class="melo">ELO 1503 · #2</div>
+          </div>
+          <div class="mcard-body">
+            <div class="mtc on" data-tab="stats-titans">
+              <div class="stat-r"><span class="stat-l">Razonamiento</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--plasma),var(--rose))" data-w="98"></div></div><span class="stat-v">98</span></div>
+              <div class="stat-r"><span class="stat-l">Escritura</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--plasma),var(--rose))" data-w="99"></div></div><span class="stat-v">99</span></div>
+              <div class="stat-r"><span class="stat-l">Coding agente</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--plasma),var(--rose))" data-w="95"></div></div><span class="stat-v">95</span></div>
+              <div class="stat-r"><span class="stat-l">Costo/valor</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--plasma),var(--rose))" data-w="72"></div></div><span class="stat-v">72</span></div>
+              <div style="margin-top:12px"><span class="chip cp">IA Constitucional</span><span class="chip cr">Coding</span></div>
+            </div>
+            <div class="mtc" data-tab="price-titans">
+              <div class="pi"><span class="pl">API Input (1M tok)</span><span class="pv y">$5.00 USD</span></div>
+              <div class="pi"><span class="pl">API Output (1M tok)</span><span class="pv y">$25.00 USD</span></div>
+              <div class="pi"><span class="pl">Suscripción Pro</span><span class="pv mid">$20–85 USD / mes</span></div>
+              <div class="pi"><span class="pl">Versión gratis</span><span class="pv">Claude Haiku básico</span></div>
+            </div>
+            <div class="mtc" data-tab="who-titans">
+              <div class="wi"><span class="wd">▸</span><div><strong>Escritura y contenido editorial</strong>El único que no suena a robot. Tono humano, matizado, sin patrones predecibles.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Agentes de código autónomo (Sonnet 4.6)</strong>Opera horas solo en repositorios complejos sin supervisión línea a línea.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Decisiones críticas con datos sensibles</strong>IA Constitucional y razonamiento transparente. Puedes ver cómo llegó a su conclusión.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GPT-5 -->
+        <div class="mcard" style="border-color:rgba(56,189,248,0.3)">
+          <div class="mcard-top" style="background:linear-gradient(135deg,rgba(56,189,248,0.07),transparent)">
+            <div class="mnum">#003 · OPENAI</div>
+            <div class="mname" style="color:#38bdf8">GPT-5.4 High</div>
+            <div class="mtag-line">El Orquestador de Equipos</div>
+            <div class="melo">ELO 1485 · #3</div>
+          </div>
+          <div class="mcard-body">
+            <div class="mtc on" data-tab="stats-titans">
+              <div class="stat-r"><span class="stat-l">Ecosistema</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,#38bdf8,var(--neon))" data-w="99"></div></div><span class="stat-v">99</span></div>
+              <div class="stat-r"><span class="stat-l">Coding estable</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,#38bdf8,var(--neon))" data-w="93"></div></div><span class="stat-v">93</span></div>
+              <div class="stat-r"><span class="stat-l">Orquestación</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,#38bdf8,var(--neon))" data-w="97"></div></div><span class="stat-v">97</span></div>
+              <div class="stat-r"><span class="stat-l">Costo/valor</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,#38bdf8,var(--neon))" data-w="50"></div></div><span class="stat-v">50</span></div>
+              <div style="margin-top:12px"><span class="chip ce">Multi-agente</span><span class="chip cn">Backend</span></div>
+            </div>
+            <div class="mtc" data-tab="price-titans">
+              <div class="pi"><span class="pl">API Input (1M tok)</span><span class="pv r">$21.00 USD</span></div>
+              <div class="pi"><span class="pl">API Output (1M tok)</span><span class="pv r">$168.00 USD</span></div>
+              <div class="pi"><span class="pl">Suscripción Pro</span><span class="pv r">$200 USD / mes</span></div>
+              <div class="pi"><span class="pl">Versión gratis</span><span class="pv">GPT-5 Mini limitado</span></div>
+            </div>
+            <div class="mtc" data-tab="who-titans">
+              <div class="wi"><span class="wd">▸</span><div><strong>El ecosistema ES el producto</strong>Conecta con más herramientas y plugins que cualquier competidor. Si ya vives en el stack OpenAI, no hay discusión.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Refactorización de arquitecturas backend</strong>GPT-5 Codex: 40% menos alucinaciones. El más confiable para arquitecturas complejas.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Coordinar múltiples agentes</strong>El mejor router inteligente del mercado. Cuando tu flujo involucra 5+ herramientas simultáneas.</div></div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /model-row titans -->
+      <div class="callout" style="margin-top:12px;"><strong>Los tres están en el top 3 mundial (ELO 1485–1505)</strong> — la brecha real no es rendimiento bruto, es ecosistema, precio y especialización. Los tres tienen versiones gratuitas suficientes para el 80% de las tareas diarias.</div>
+    </div>
+  </div>
+
+  <!-- ─ PANEL 3: LOS DISRUPTORES ─ -->
+  <div class="panel" id="p-disruptores">
+    <div class="panel-content">
+      <button class="back-btn" onclick="closePanel()">← VOLVER AL MAPA</button>
+      <div class="p-tag" style="color:var(--nova)">🔥 ZONA 03 — OPEN-WEIGHT</div>
+      <h1 class="p-title">Los <span style="color:var(--nova)">Disruptores</span>.<br>De China, sin pedir permiso.</h1>
+      <p class="p-intro">Modelos de pesos abiertos que están canibalizando el mercado propietario. <strong>Mismo rendimiento de élite, fracción del costo.</strong> Para quien construye en pesos mexicanos, esto cambia la ecuación completa.</p>
+
+      <div class="model-tabrow">
+        <button class="mtab on" onclick="switchMtab(this,'stats-disrupt')">ESTADÍSTICAS</button>
+        <button class="mtab" onclick="switchMtab(this,'price-disrupt')">PRECIO</button>
+        <button class="mtab" onclick="switchMtab(this,'who-disrupt')">¿PARA QUIÉN?</button>
+      </div>
+
+      <div class="model-row" data-group="disrupt">
+
+        <!-- DeepSeek -->
+        <div class="mcard" style="border-color:rgba(255,107,53,0.3)">
+          <div class="mcard-top" style="background:linear-gradient(135deg,rgba(255,107,53,0.08),transparent)">
+            <div class="mnum">#004 · DEEPSEEK AI</div>
+            <div class="mname" style="color:var(--nova)">DeepSeek V3.2</div>
+            <div class="mtag-line">El Hacker de la Eficiencia</div>
+          </div>
+          <div class="mcard-body">
+            <div class="mtc on" data-tab="stats-disrupt">
+              <div class="stat-r"><span class="stat-l">Rendimiento</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--nova),var(--gold))" data-w="88"></div></div><span class="stat-v">88</span></div>
+              <div class="stat-r"><span class="stat-l">Eficiencia costo</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--nova),var(--gold))" data-w="99"></div></div><span class="stat-v">99</span></div>
+              <div class="stat-r"><span class="stat-l">Velocidad</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--nova),var(--gold))" data-w="94"></div></div><span class="stat-v">94</span></div>
+              <div class="stat-r"><span class="stat-l">Open-weight</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--nova),var(--gold))" data-w="100"></div></div><span class="stat-v">✓</span></div>
+              <div style="margin-top:12px"><span class="chip co">Sparse Attention</span><span class="chip cg">Pay-as-you-go</span></div>
+            </div>
+            <div class="mtc" data-tab="price-disrupt">
+              <div class="pi"><span class="pl">API Input (1M tok)</span><span class="pv g">$0.28 USD ←</span></div>
+              <div class="pi"><span class="pl">API Output (1M tok)</span><span class="pv g">$0.42 USD</span></div>
+              <div class="pi"><span class="pl">Vs GPT-5 Pro</span><span class="pv r">75x más barato</span></div>
+              <div class="pi"><span class="pl">Modelo base</span><span class="pv g">Open-weight (deployable)</span></div>
+            </div>
+            <div class="mtc" data-tab="who-disrupt">
+              <div class="wi"><span class="wd">▸</span><div><strong>Automatización masiva de procesos</strong>Clasificar, filtrar, etiquetar miles de items. Costo casi cero por operación.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Micro-agentes de alto volumen</strong>Soporte técnico básico, respuestas FAQ, procesamiento batch. El costo de inferencia no te mata.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Desarrolladores en México</strong>Escalar aplicaciones en pesos mexicanos. La única opción que hace viable construir a escala.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Qwen -->
+        <div class="mcard" style="border-color:rgba(255,110,180,0.3)">
+          <div class="mcard-top" style="background:linear-gradient(135deg,rgba(255,110,180,0.08),transparent)">
+            <div class="mnum">#005 · ALIBABA</div>
+            <div class="mname" style="color:var(--rose)">Qwen 3.5</div>
+            <div class="mtag-line">El Maestro Multilingüe</div>
+          </div>
+          <div class="mcard-body">
+            <div class="mtc on" data-tab="stats-disrupt">
+              <div class="stat-r"><span class="stat-l">Multilingüe</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--rose),var(--plasma))" data-w="99"></div></div><span class="stat-v">99</span></div>
+              <div class="stat-r"><span class="stat-l">Instrucciones</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--rose),var(--plasma))" data-w="97"></div></div><span class="stat-v">97</span></div>
+              <div class="stat-r"><span class="stat-l">Determinismo</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--rose),var(--plasma))" data-w="95"></div></div><span class="stat-v">95</span></div>
+              <div class="stat-r"><span class="stat-l">Eficiencia costo</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--rose),var(--plasma))" data-w="88"></div></div><span class="stat-v">88</span></div>
+              <div style="margin-top:12px"><span class="chip cr">Español nativo</span><span class="chip cp">Determinista</span></div>
+            </div>
+            <div class="mtc" data-tab="price-disrupt">
+              <div class="pi"><span class="pl">Modelo base</span><span class="pv g">Open-weight</span></div>
+              <div class="pi"><span class="pl">Self-hosted</span><span class="pv g">Costo de infraestructura</span></div>
+              <div class="pi"><span class="pl">API (terceros)</span><span class="pv y">Precios competitivos</span></div>
+              <div class="pi"><span class="pl">Idiomas soportados</span><span class="pv g">100+ idiomas</span></div>
+            </div>
+            <div class="mtc" data-tab="who-disrupt">
+              <div class="wi"><span class="wd">▸</span><div><strong>Automatización industrial con español</strong>Instruction-following determinista: lo que le dices, lo hace. Exactamente. Siempre. Sin sorpresas.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Audiencias multilingüe</strong>Español, mandarín, árabe, japonés al mismo nivel. No hay degradación entre idiomas.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Workflows que deben ser 100% reproducibles</strong>Cuando la consistencia importa más que la creatividad.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GLM-5 -->
+        <div class="mcard" style="border-color:rgba(13,255,176,0.3)">
+          <div class="mcard-top" style="background:linear-gradient(135deg,rgba(13,255,176,0.06),transparent)">
+            <div class="mnum">#006 · ZHIPU AI</div>
+            <div class="mname" style="color:var(--neon)">GLM-5</div>
+            <div class="mtag-line">El Gigante Invisible</div>
+          </div>
+          <div class="mcard-body">
+            <div class="mtc on" data-tab="stats-disrupt">
+              <div class="stat-r"><span class="stat-l">Código autónomo</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--neon),var(--elec))" data-w="90"></div></div><span class="stat-v">90</span></div>
+              <div class="stat-r"><span class="stat-l">SWE-bench</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--neon),var(--elec))" data-w="78"></div></div><span class="stat-v">77.8</span></div>
+              <div class="stat-r"><span class="stat-l">Escala MoE</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--neon),var(--elec))" data-w="99"></div></div><span class="stat-v">99</span></div>
+              <div class="stat-r"><span class="stat-l">Eficiencia costo</span><div class="stat-b"><div class="stat-f" style="background:linear-gradient(90deg,var(--neon),var(--elec))" data-w="95"></div></div><span class="stat-v">95</span></div>
+              <div style="margin-top:12px"><span class="chip cn">744B params</span><span class="chip ce">40B activos</span></div>
+            </div>
+            <div class="mtc" data-tab="price-disrupt">
+              <div class="pi"><span class="pl">Arquitectura</span><span class="pv g">MoE (744B / 40B activos)</span></div>
+              <div class="pi"><span class="pl">Costo activo</span><span class="pv g">Similar a modelo pequeño</span></div>
+              <div class="pi"><span class="pl">SWE-bench score</span><span class="pv y">77.8 — supera modelos occidentales</span></div>
+              <div class="pi"><span class="pl">Disponibilidad</span><span class="pv">Open-weight / API</span></div>
+            </div>
+            <div class="mtc" data-tab="who-disrupt">
+              <div class="wi"><span class="wd">▸</span><div><strong>Ingeniería de software autónoma</strong>77.8 en SWE-bench supera a modelos occidentales. El mejor para proyectos de código sin supervisión constante.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Proyectos de software de largo plazo</strong>Entiende arquitecturas completas — no solo snippets. Puede trabajar en un repositorio como un senior dev.</div></div>
+              <div class="wi"><span class="wd">▸</span><div><strong>Scale sin el precio de los propietarios</strong>744B de conocimiento, pero pagas por 40B de cómputo. La magia del MoE.</div></div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /model-row disrupt -->
+      <div class="callout" style="border-left-color:var(--nova);background:rgba(255,107,53,0.04);">
+        <strong>La presión competitiva de estos modelos causó una deflación global de precios.</strong> En 2024 pagabas $20/M tokens por capacidades que hoy cuestan $0.28. Esto no es marketing — es lo que sucedió cuando China decidió abrir sus modelos.
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ PANEL 4: CUÁL USAR ─ -->
+  <div class="panel" id="p-uso">
+    <div class="panel-content">
+      <button class="back-btn" onclick="closePanel()">← VOLVER AL MAPA</button>
+      <div class="p-tag" style="color:var(--gold)">🎯 ZONA 04 — SELECCIÓN ESTRATÉGICA</div>
+      <h1 class="p-title">No existe el<br>"mejor modelo" <span style="color:var(--gold)">universal.</span></h1>
+      <p class="p-intro">Existe el mejor modelo <strong>para tu tarea</strong>. Selecciona lo que vas a hacer ahora mismo y te decimos exactamente a quién llamar — y por qué.</p>
+
+      <div class="task-g">
+        <div class="tnode" onclick="showRec(this,'code')"><span class="tico">💻</span><span class="tlbl">Coding / Agente</span></div>
+        <div class="tnode" onclick="showRec(this,'docs')"><span class="tico">📄</span><span class="tlbl">Análisis de documentos</span></div>
+        <div class="tnode" onclick="showRec(this,'write')"><span class="tico">✍️</span><span class="tlbl">Escritura / Contenido</span></div>
+        <div class="tnode" onclick="showRec(this,'auto')"><span class="tico">⚙️</span><span class="tlbl">Automatización masiva</span></div>
+      </div>
+
+      <div class="rec-box" id="rec-box">
+        <div class="rec-ph" id="rec-ph">← Selecciona una categoría para ver la recomendación táctica</div>
+        <div id="rec-content" style="display:none;width:100%;display:none;flex-direction:row;gap:24px;align-items:flex-start;">
+          <div class="rico" id="rec-ico"></div>
+          <div class="rbody" style="flex:1">
+            <h3 id="rec-title"></h3>
+            <p id="rec-text"></p>
+            <div class="chips" id="rec-chips"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top:28px;">
+        <strong>La regla de oro:</strong> Las versiones gratuitas cubren el 80% de tareas administrativas. El nivel Pro (20–30 USD/mes) solo se justifica cuando el razonamiento crítico impacta directamente tu ingreso o cuando los errores cuestan más que la suscripción.
+      </div>
+
+      <h3 style="font-family:'Orbitron',monospace;font-size:13px;letter-spacing:2px;color:var(--text);margin:36px 0 20px;">TAMBIÉN DEPENDE DE TU CONTEXTO</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;">
+        <div class="callout callout-elec" style="margin:0;border-radius:10px;padding:18px 20px;">
+          <strong>📍 Desarrollador en México</strong><br>DeepSeek V3.2 + GLM-5. Rendimiento mundial escalable en pesos. Sin suscripción fija.
+        </div>
+        <div class="callout callout-green" style="margin:0;border-radius:10px;padding:18px 20px;">
+          <strong>🍁 Investigador en Canadá</strong><br>Gemini 3.1 o Llama 4 Scout. Las únicas opciones que procesan repositorios completos con coherencia absoluta.
+        </div>
+        <div class="callout" style="margin:0;border-radius:10px;padding:18px 20px;">
+          <strong>🇺🇸 Empresa con datos sensibles</strong><br>Claude 4.6 o GPT-5 Pro. IA Constitucional y razonamiento verificable para decisiones críticas.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ PANEL 5: ECONOMÍA ─ -->
+  <div class="panel" id="p-economia">
+    <div class="panel-content">
+      <button class="back-btn" onclick="closePanel()">← VOLVER AL MAPA</button>
+      <div class="p-tag" style="color:var(--neon)">💰 ZONA 05 — ECONOMÍA REAL</div>
+      <h1 class="p-title">¿Cuándo vale la pena<br><span style="color:var(--neon)">pagar</span>?</h1>
+      <p class="p-intro"><strong>$20–30 USD al mes.</strong> En Toronto son dos cafés. En la Ciudad de México pueden ser dos días de comida. Aquí está el desglose honesto para que tomes la decisión correcta para tu contexto.</p>
+
+      <div class="cur-toggle">
+        <button class="ctbtn on" onclick="setCurrency('USD')">USD</button>
+        <button class="ctbtn" onclick="setCurrency('MXN')">MXN</button>
+        <button class="ctbtn" onclick="setCurrency('CAD')">CAD</button>
+      </div>
+
+      <div class="price-tbl">
+        <div class="ptr pth">
+          <div class="ptc">MODELO</div>
+          <div class="ptc">API (1M TOKENS)</div>
+          <div class="ptc">SUSCRIPCIÓN/MES</div>
+          <div class="ptc">GRATIS INCLUYE</div>
+        </div>
+        <div class="ptr">
+          <div class="ptc"><span class="ptm" style="color:#ff7060">GPT-5.4 Pro</span></div>
+          <div class="ptc ptapi exp" id="p1-api">$21 / $168</div>
+          <div class="ptc ptapi exp" id="p1-sub">$200</div>
+          <div class="ptc">GPT-5 Mini limitado</div>
+        </div>
+        <div class="ptr">
+          <div class="ptc"><span class="ptm" style="color:var(--plasma)">Claude 4.6 Opus</span></div>
+          <div class="ptc ptapi mid" id="p2-api">$5 / $25</div>
+          <div class="ptc ptapi mid" id="p2-sub">$20–85</div>
+          <div class="ptc">Claude Haiku básico</div>
+        </div>
+        <div class="ptr">
+          <div class="ptc"><span class="ptm" style="color:#ff7060">Gemini 3.1 Pro</span></div>
+          <div class="ptc ptapi mid" id="p3-api">$2 / $12</div>
+          <div class="ptc ptapi g" id="p3-sub">En Google One ✓</div>
+          <div class="ptc ptfree">Flash ilimitado ✓</div>
+        </div>
+        <div class="ptr">
+          <div class="ptc"><span class="ptm" style="color:var(--nova)">DeepSeek V3.2</span></div>
+          <div class="ptc ptapi cheap" id="p4-api">$0.28 / $0.42</div>
+          <div class="ptc ptapi cheap" id="p4-sub">Pay-as-you-go</div>
+          <div class="ptc">API limitada</div>
+        </div>
+        <div class="ptr">
+          <div class="ptc"><span class="ptm" style="color:var(--muted)">GPT-5 Nano</span></div>
+          <div class="ptc ptapi cheap" id="p5-api">$0.05 / $0.40</div>
+          <div class="ptc ptapi cheap" id="p5-sub">Gratis / integrado</div>
+          <div class="ptc ptfree">80% tareas admin ✓</div>
+        </div>
+      </div>
+
+      <div style="background:linear-gradient(135deg,rgba(13,255,176,0.06),transparent);border:1px solid rgba(13,255,176,0.2);border-radius:16px;padding:28px;margin:24px 0;">
+        <h3 style="font-family:'Orbitron',monospace;font-size:10px;color:var(--neon);letter-spacing:2px;margin-bottom:14px;">💡 EL VEREDICTO HONESTO</h3>
+        <p style="font-size:15px;line-height:1.75;color:var(--muted);">Las versiones gratuitas de <strong style="color:var(--text)">Gemini Flash o GPT-5 Mini son hoy suficientes para el 80% de tareas administrativas</strong>. El desembolso de 20–30 USD mensuales se justifica cuando: el razonamiento crítico impacta directamente tu ingreso, la reducción del 40% en errores equivale a horas de tu tiempo, o estás construyendo flujos automatizados que manejan decisiones a escala.<br><br><strong style="color:var(--text)">Empieza gratis. Escala cuando lo sientas.</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ PANEL 6: ORQUESTACIÓN ─ -->
+  <div class="panel" id="p-orquestacion">
+    <div class="panel-content">
+      <button class="back-btn" onclick="closePanel()">← VOLVER AL MAPA</button>
+      <div class="p-tag" style="color:var(--rose)">🤖 ZONA 06 — ORQUESTACIÓN AGENTIC</div>
+      <h1 class="p-title">Construye tu equipo<br>de <span style="color:var(--rose)">agentes</span>.</h1>
+      <p class="p-intro">Un agente no es un chatbot. Es un modelo con herramientas, memoria y capacidad de actuar. <strong>La magia está en orquestar varios juntos</strong>, cada uno haciendo lo que mejor sabe hacer. <strong>Haz click en cada rol</strong> para ver quién va ahí y por qué.</p>
+
+      <div class="agent-g">
+        <div class="acard" onclick="toggleAgent(this)">
+          <div class="aico">🎯</div>
+          <div class="atitle">EL ORQUESTADOR</div>
+          <div class="amodel">GPT-5.4 / Claude Opus 4.6</div>
+          <div class="adesc">El jefe de proyecto. Recibe la tarea grande, la descompone y delega a los agentes correctos.</div>
+          <div class="adetail"><strong>Por qué estos modelos:</strong> El orquestador necesita razonamiento superior, comprensión de contexto complejo y excelente gestión de herramientas. GPT-5 gana por ecosistema de integraciones. Claude Opus gana por razonamiento transparente y confiable. Necesitas que planifique bien — los errores aquí se amplifican en todo el pipeline.<br><br><span class="chip ce">Router inteligente</span><span class="chip cp">Gestión de contexto</span></div>
+          <div class="achint">▼ EXPANDIR ROL</div>
+        </div>
+        <div class="acard" onclick="toggleAgent(this)">
+          <div class="aico">💻</div>
+          <div class="atitle">EL CODER AUTÓNOMO</div>
+          <div class="amodel">Claude Sonnet 4.6</div>
+          <div class="adesc">Opera horas solo en repositorios complejos. Resuelve incidencias, escribe tests, refactoriza.</div>
+          <div class="adetail"><strong>Por qué este modelo:</strong> Claude Sonnet 4.6 es el líder indiscutible en autonomía agente. Puede tomar un ticket de GitHub, entender el contexto del repositorio completo, implementar la solución y abrir el PR — sin que nadie lo supervise línea a línea. Esto es lo que hace que valga la suscripción.<br><br><span class="chip cp">Autonomía extendida</span><span class="chip cr">SWE-benchmark</span></div>
+          <div class="achint">▼ EXPANDIR ROL</div>
+        </div>
+        <div class="acard" onclick="toggleAgent(this)">
+          <div class="aico">📊</div>
+          <div class="atitle">EL ANALISTA</div>
+          <div class="amodel">Gemini 3.1 / Llama 4 Scout</div>
+          <div class="adesc">Procesa millones de tokens sin perder contexto. Le das una biblioteca, extrae lo que buscas.</div>
+          <div class="adetail"><strong>Por qué estos modelos:</strong> Gemini 3.1 tiene 1M tokens con recall perfecto — puedes darle documentos enteros y hace búsqueda semántica profunda. Llama 4 Scout lleva esto a 10M tokens, eliminando la necesidad de fragmentar datos (chunking) en proyectos masivos. Ningún otro modelo compite aquí en contexto puro.<br><br><span class="chip ce">1M–10M tokens</span><span class="chip cn">Recall perfecto</span></div>
+          <div class="achint">▼ EXPANDIR ROL</div>
+        </div>
+        <div class="acard" onclick="toggleAgent(this)">
+          <div class="aico">⚡</div>
+          <div class="atitle">LOS MICRO-AGENTES</div>
+          <div class="amodel">DeepSeek V3.2 / GPT-5 Nano</div>
+          <div class="adesc">Clasificar emails, responder FAQs, etiquetar datos. Velocidad máxima, costo casi cero.</div>
+          <div class="adetail"><strong>Por qué estos modelos:</strong> Para operaciones repetitivas de alto volumen, la latencia y el costo por llamada importan más que la inteligencia máxima. DeepSeek a $0.28/M tokens y GPT-5 Nano a $0.05/M tokens permiten automatizar procesos que antes eran económicamente inviables — decenas de miles de operaciones por dólar.<br><br><span class="chip co">$0.05–0.28/M tok</span><span class="chip cg">Alta velocidad</span></div>
+          <div class="achint">▼ EXPANDIR ROL</div>
+        </div>
+        <div class="acard" onclick="toggleAgent(this)">
+          <div class="aico">✍️</div>
+          <div class="atitle">EL ESCRITOR</div>
+          <div class="amodel">Claude 4.5</div>
+          <div class="adesc">Genera contenido que no suena a AI. El estándar de oro para comunicaciones donde el tono importa.</div>
+          <div class="adetail"><strong>Por qué este modelo:</strong> Claude 4.5 es el único modelo que evita consistentemente los patrones predecibles de la IA — las frases cliché, la estructura robótica, el tono neutro que todos detectan. Para marketing de alto nivel, reportes ejecutivos y contenido editorial donde la voz y el matiz son el producto en sí.<br><br><span class="chip cp">Voz humana</span><span class="chip cr">Sin patrones AI</span></div>
+          <div class="achint">▼ EXPANDIR ROL</div>
+        </div>
+        <div class="acard" onclick="toggleAgent(this)">
+          <div class="aico">🌐</div>
+          <div class="atitle">EL MULTILINGÜE</div>
+          <div class="amodel">Qwen 3.5</div>
+          <div class="adesc">Para flujos que cruzan idiomas. Instrucciones deterministas que se ejecutan igual en cualquier lengua.</div>
+          <div class="adetail"><strong>Por qué este modelo:</strong> Cuando tu audiencia habla español, mandarín, árabe y japonés y necesitas que el output sea consistente en todos — Qwen 3.5 es la respuesta. Su instruction-following determinista significa que no improvisa entre idiomas; ejecuta exactamente lo que le dijiste, sin pérdida de precisión por la traducción implícita.<br><br><span class="chip cr">100+ idiomas</span><span class="chip cp">Determinista</span></div>
+          <div class="achint">▼ EXPANDIR ROL</div>
+        </div>
+      </div>
+
+      <div style="background:linear-gradient(135deg,rgba(0,207,255,0.05),transparent);border:1px solid rgba(0,207,255,0.2);border-radius:16px;padding:28px;margin-top:24px;">
+        <h3 style="font-family:'Orbitron',monospace;font-size:10px;color:var(--elec);letter-spacing:2px;margin-bottom:14px;">⚡ EL STACK ÓPTIMO</h3>
+        <p style="font-size:15px;line-height:1.75;color:var(--muted);"><strong style="color:var(--text)">Orquestador (Claude/GPT) → Coder (Sonnet 4.6) → Analista (Gemini) → Escritor (Claude 4.5) → Microtareas (DeepSeek).</strong><br><br>Cada modelo hace lo que mejor sabe hacer. El resultado combinado supera a cualquier modelo solo, y el costo total es menor que pagar el tier Pro de todos. La clave: el orquestador enruta inteligentemente — solo escala al modelo caro cuando la tarea lo justifica.</p>
+      </div>
+
+      <h3 style="font-family:'Orbitron',monospace;font-size:12px;letter-spacing:2px;color:var(--text);margin:44px 0 20px;">MATRIZ DE DECISIÓN FINAL</h3>
+      <div class="mtx">
+        <div class="mrow mhdr">
+          <div class="mc2">TU SITUACIÓN</div>
+          <div class="mc2">MODELO</div>
+          <div class="mc2">RAZÓN</div>
+        </div>
+        <div class="mrow">
+          <div class="mc2"><strong>Dev en México</strong><span>Costo-beneficio máximo</span></div>
+          <div class="mc2" style="color:var(--nova);font-weight:700;">DeepSeek V3.2 / GLM-5</div>
+          <div class="mc2"><span>Rendimiento mundial, precios en pesos. Sin suscripción mensual fija.</span></div>
+        </div>
+        <div class="mrow">
+          <div class="mc2"><strong>Análisis masivo</strong><span>Research, repositorios, legal</span></div>
+          <div class="mc2" style="color:#ff7060;font-weight:700;">Gemini 3.1 / Llama 4 Scout</div>
+          <div class="mc2"><span>1M–10M tokens sin fragmentar datos. Recall perfecto en todo el contexto.</span></div>
+        </div>
+        <div class="mrow">
+          <div class="mc2"><strong>Decisiones críticas</strong><span>Datos sensibles, alta precisión</span></div>
+          <div class="mc2" style="color:var(--plasma);font-weight:700;">Claude 4.6 / GPT-5 Pro</div>
+          <div class="mc2"><span>IA Constitucional, razonamiento verificable. 40% menos errores donde importa.</span></div>
+        </div>
+        <div class="mrow">
+          <div class="mc2"><strong>Contenido editorial</strong><span>Marketing, comunicaciones</span></div>
+          <div class="mc2" style="color:var(--plasma);font-weight:700;">Claude 4.5</div>
+          <div class="mc2"><span>El único que no suena a AI. Tono, voz y matiz real.</span></div>
+        </div>
+        <div class="mrow">
+          <div class="mc2"><strong>Automatización masiva</strong><span>Clasificar, filtrar, procesar</span></div>
+          <div class="mc2" style="color:var(--neon);font-weight:700;">GPT-5 Nano / DeepSeek</div>
+          <div class="mc2"><span>Costo casi cero por operación. Procesos antes inviables, ahora escalables.</span></div>
+        </div>
+        <div class="mrow">
+          <div class="mc2"><strong>Stack multi-agente</strong><span>Orquestación completa</span></div>
+          <div class="mc2" style="color:var(--gold);font-weight:700;">Modelo híbrido</div>
+          <div class="mc2"><span>Orquestador + especialistas + micro-agentes. Mejor resultado, costo total menor.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /panel-overlay -->
+
+<script>
+// ─── STATE ───
+const visited = new Set();
+let currentPanel = null;
+let currency = 'USD';
+
+const PRICES = {
+  USD: {
+    p1a:'$21 / $168', p1s:'$200 / mes',
+    p2a:'$5 / $25',   p2s:'$20–85 / mes',
+    p3a:'$2 / $12',   p3s:'Incluido en Google One',
+    p4a:'$0.28 / $0.42', p4s:'Pay-as-you-go',
+    p5a:'$0.05 / $0.40', p5s:'Gratis'
+  },
+  MXN: {
+    p1a:'$378 / $3,024', p1s:'$3,600 / mes',
+    p2a:'$90 / $450',    p2s:'$360–1,530 / mes',
+    p3a:'$36 / $216',    p3s:'Incluido en Google One',
+    p4a:'$5.04 / $7.56', p4s:'Por uso',
+    p5a:'$0.90 / $7.20', p5s:'Gratis'
+  },
+  CAD: {
+    p1a:'$28.4 / $227', p1s:'$270 / mes',
+    p2a:'$6.75 / $33.8', p2s:'$27–115 / mes',
+    p3a:'$2.70 / $16.2', p3s:'Incluido en Google One',
+    p4a:'$0.38 / $0.57', p4s:'Por uso',
+    p5a:'$0.07 / $0.54', p5s:'Gratis'
+  }
+};
+
+const RECS = {
+  code:{
+    ico:'🦾',
+    title:'Claude Sonnet 4.6 → GPT-5 Codex para arquitectura',
+    text:'Para agentes que corren solos durante horas → <strong>Claude Sonnet 4.6</strong>. Para refactorización profunda de arquitecturas backend donde el 40% menos de alucinaciones importa → <strong>GPT-5 Codex</strong>. Para prototipos rápidos y bajo costo → <strong>DeepSeek V3.2</strong>.',
+    chips:`<span class="chip cp">Claude Sonnet 4.6</span><span class="chip ce">GPT-5 Codex</span><span class="chip co">DeepSeek (prototipado)</span>`
+  },
+  docs:{
+    ico:'📡',
+    title:'Gemini 3.1 Pro → Llama 4 Scout para escala masiva',
+    text:'Para volúmenes normales (hasta 1M tokens) con recall perfecto → <strong>Gemini 3.1</strong>. Para proyectos masivos — bibliotecas enteras, décadas de registros legales — → <strong>Llama 4 Scout con 10M tokens</strong>. Sin necesidad de fragmentar datos.',
+    chips:`<span class="chip ce">Gemini 3.1 · 1M tokens</span><span class="chip cn">Llama 4 Scout · 10M tokens</span>`
+  },
+  write:{
+    ico:'🖋️',
+    title:'Claude 4.5 — el estándar de oro. Sin competencia.',
+    text:'Para escritura que no suena a IA, que mantiene voz y tono humano, que evita los patrones predecibles → <strong>Claude 4.5 es el único</strong>. Marketing de alto nivel, comunicaciones corporativas, contenido editorial. No hay modelo que lo iguale aquí.',
+    chips:`<span class="chip cp">Claude 4.5 · Único en su clase</span>`
+  },
+  auto:{
+    ico:'🏭',
+    title:'DeepSeek V3.2 + GPT-5 Nano — el combo imbatible',
+    text:'Para clasificación masiva, soporte básico, procesamiento batch → <strong>DeepSeek V3.2 ($0.28/M)</strong> y <strong>GPT-5 Nano ($0.05/M)</strong>. Procesos que antes eran económicamente inviables ahora se ejecutan a centavos. Escala sin límite.',
+    chips:`<span class="chip co">DeepSeek V3.2 · $0.28/M</span><span class="chip cg">GPT-5 Nano · $0.05/M</span>`
+  }
+};
+
+// ─── ZOOM INTO NODE ───
+function openPanel(panelId, nodeEl) {
+  const mapWorld = document.getElementById('map-world');
+  const rect = nodeEl.getBoundingClientRect();
+  const mapRect = mapWorld.getBoundingClientRect();
+  const scale = 10;
+  const ox = mapRect.width / 2;
+  const oy = mapRect.height / 2;
+  const nodeLocalX = rect.left + rect.width/2 - mapRect.left;
+  const nodeLocalY = rect.top + rect.height/2 - mapRect.top;
+  const vx = window.innerWidth/2 - mapRect.left;
+  const vy = (window.innerHeight - 48)/2 - mapRect.top;
+  const tx = (vx - ox)/scale - nodeLocalX + ox;
+  const ty = (vy - oy)/scale - nodeLocalY + oy;
+
+  mapWorld.style.transform = `scale(${scale}) translate(${tx}px, ${ty}px)`;
+  mapWorld.style.opacity = '0';
+  nodeEl.classList.add('visited');
+
+  visited.add(panelId);
+  updateHUD(nodeEl.dataset.name || panelId);
+
+  setTimeout(() => {
+    const overlay = document.getElementById('panel-overlay');
+    overlay.style.display = 'block';
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+    const target = document.getElementById('p-' + panelId);
+    if (target) target.classList.add('on');
+    currentPanel = panelId;
+    setTimeout(() => {
+      overlay.classList.add('vis');
+      // Animate stat bars
+      target.querySelectorAll('.stat-f[data-w]').forEach(b => {
+        setTimeout(() => { b.style.width = b.dataset.w + '%'; }, 400);
+      });
+    }, 50);
+  }, 500);
+}
+
+function closePanel() {
+  const overlay = document.getElementById('panel-overlay');
+  overlay.classList.remove('vis');
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+    currentPanel = null;
+    const mapWorld = document.getElementById('map-world');
+    mapWorld.style.transform = 'scale(1) translate(0,0)';
+    mapWorld.style.opacity = '1';
+    document.getElementById('hud-status').textContent = 'SELECCIONA UN NODO';
+  }, 400);
+}
+
+function updateHUD(name) {
+  document.getElementById('hud-status').textContent = name;
+  document.getElementById('hud-score').textContent = visited.size + ' / 6 ZONAS';
+  const nodes = document.querySelectorAll('#hud-nodes .hud-node');
+  nodes.forEach((n, i) => {
+    if (i < visited.size) n.classList.add('done');
+  });
+}
+
+// ─── PARADIGMA ───
+function switchView(which) {
+  document.querySelectorAll('.tbtn').forEach((b,i) => {
+    b.classList.toggle('on', (i===0 && which==='antes') || (i===1 && which==='ahora'));
+  });
+  document.getElementById('pv-antes').classList.toggle('on', which==='antes');
+  document.getElementById('pv-ahora').classList.toggle('on', which==='ahora');
+}
+function revealConcept(card) {
+  const detail = card.querySelector('.cdetail');
+  const hint = card.querySelector('.chint');
+  const isOpen = detail.classList.contains('open');
+  document.querySelectorAll('.cdetail.open').forEach(d => {
+    d.classList.remove('open');
+    d.closest('.ccard').querySelector('.chint').textContent = '▼ CLICK PARA PROFUNDIZAR';
+    d.closest('.ccard').classList.remove('lit');
+  });
+  if (!isOpen) {
+    detail.classList.add('open');
+    hint.textContent = '▲ CERRAR';
+    card.classList.add('lit');
+  }
+}
+
+// ─── TITANS / DISRUPTORS MODEL TABS ───
+function switchMtab(btn, tabKey) {
+  const row = btn.closest('.panel-content').querySelector('.model-row');
+  btn.closest('.model-tabrow').querySelectorAll('.mtab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  row.querySelectorAll('.mtc').forEach(tc => {
+    tc.classList.toggle('on', tc.dataset.tab === tabKey);
+  });
+  // Re-animate stat bars on stats tab
+  if (tabKey.startsWith('stats')) {
+    row.querySelectorAll('.stat-f[data-w]').forEach(b => {
+      b.style.width = '0%';
+      setTimeout(() => { b.style.width = b.dataset.w + '%'; }, 100);
+    });
+  }
+}
+
+// ─── CUÁL USAR ───
+function showRec(tnode, type) {
+  document.querySelectorAll('.tnode').forEach(t => t.classList.remove('sel'));
+  tnode.classList.add('sel');
+  const rec = RECS[type];
+  const box = document.getElementById('rec-box');
+  document.getElementById('rec-ph').style.display = 'none';
+  const content = document.getElementById('rec-content');
+  content.style.display = 'flex';
+  document.getElementById('rec-ico').textContent = rec.ico;
+  document.getElementById('rec-title').textContent = rec.title;
+  document.getElementById('rec-text').innerHTML = rec.text;
+  document.getElementById('rec-chips').innerHTML = rec.chips;
+  box.style.borderColor = 'rgba(247,201,72,0.4)';
+  box.style.background = 'rgba(247,201,72,0.04)';
+}
+
+// ─── ECONOMY CURRENCY ───
+function setCurrency(cur) {
+  currency = cur;
+  document.querySelectorAll('.ctbtn').forEach(b => b.classList.toggle('on', b.textContent === cur));
+  const p = PRICES[cur];
+  document.getElementById('p1-api').textContent = p.p1a;
+  document.getElementById('p1-sub').textContent = p.p1s;
+  document.getElementById('p2-api').textContent = p.p2a;
+  document.getElementById('p2-sub').textContent = p.p2s;
+  document.getElementById('p3-api').textContent = p.p3a;
+  document.getElementById('p3-sub').textContent = p.p3s;
+  document.getElementById('p4-api').textContent = p.p4a;
+  document.getElementById('p4-sub').textContent = p.p4s;
+  document.getElementById('p5-api').textContent = p.p5a;
+  document.getElementById('p5-sub').textContent = p.p5s;
+}
+
+// ─── AGENT TOGGLE ───
+function toggleAgent(card) {
+  const detail = card.querySelector('.adetail');
+  const hint = card.querySelector('.achint');
+  const isOpen = detail.classList.contains('open');
+  document.querySelectorAll('.adetail.open').forEach(d => {
+    d.classList.remove('open');
+    d.closest('.acard').querySelector('.achint').textContent = '▼ EXPANDIR ROL';
+    d.closest('.acard').classList.remove('exp');
+  });
+  if (!isOpen) {
+    detail.classList.add('open');
+    hint.textContent = '▲ COLAPSAR';
+    card.classList.add('exp');
+  }
+}
+
+// ─── KEYBOARD ───
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && currentPanel) closePanel();
+});
+
+// ─── MOUSE PARALLAX ON MAP ───
+document.getElementById('map-wrapper').addEventListener('mousemove', e => {
+  if (currentPanel) return;
+  const w = window.innerWidth, h = window.innerHeight - 48;
+  const dx = (e.clientX - w/2) / w * 12;
+  const dy = (e.clientY - 48 - h/2) / h * 12;
+  document.querySelectorAll('.orb').forEach((o, i) => {
+    const factor = (i + 1) * 0.5;
+    o.style.transform = `translate(${dx * factor}px, ${dy * factor}px)`;
+  });
+});
+</script>
+</body>
+</html>
